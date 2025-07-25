@@ -1,0 +1,7 @@
+secrets:
+  - name: ADQ-STORAGE_ACCESSKEY
+    storageAccountName: mystorageacct
+    keyType: key1
+  - name: ADQ_STORAGE_ACCESSSECRET
+    storageAccountName: mystorageacct
+    keyType: key2
