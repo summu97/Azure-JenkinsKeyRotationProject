@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        AZURE_CLIENT_ID = credentials('jenkins-managed-identity-client-id') // Optional if identity is system-assigned
+        // AZURE_CLIENT_ID = credentials('jenkins-managed-identity-client-id')  Optional if identity is system-assigned
         TEMP_FILE = 'params.yaml'
     }
 
