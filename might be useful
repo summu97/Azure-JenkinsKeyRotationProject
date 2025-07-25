@@ -1,0 +1,159 @@
+pipeline {
+    agent any
+
+    environment {
+        TEMP_FILE = 'params.yaml'
+    }
+
+    stages {
+
+        stage('Azure Login with Managed Identity') {
+            steps {
+                script {
+                    echo '🔐 Logging in to Azure using VM Managed Identity...'
+                    sh 'az login --identity'
+                }
+            }
+        }
+
+        stage('Fetch Parameters File') {
+            steps {
+                dir('repo') {
+                    git branch: 'main', url: 'https://github.com/summu97/Azure-JenkinsKeyRotationProject.git'
+                }
+                script {
+                    echo "📥 Downloaded parameter file"
+                    sh 'cat repo/params.yaml'
+                }
+            }
+        }
+
+        stage('Fetch and Compare Keys') {
+            steps {
+                script {
+                    def secrets = readYaml file: "repo/${TEMP_FILE}"
+                    if (!secrets) {
+                        error "❌ Could not load or parse ${TEMP_FILE}"
+                    }
+
+                    def KEY_VAULT_NAME = secrets.keyVaultName
+
+                    secrets.secrets.each { secret ->
+                        def keyVaultValue = sh(
+                            script: "az keyvault secret show --name ${secret.name} --vault-name ${KEY_VAULT_NAME} --query value -o tsv",
+                            returnStdout: true
+                        ).trim()
+
+                        def liveKey = sh(
+                            script: "az storage account keys list --account-name ${secret.storageAccountName} --query \"[?keyName=='${secret.keyType}'].value\" -o tsv",
+                            returnStdout: true
+                        ).trim()
+
+                        if (keyVaultValue == liveKey) {
+                            echo "✅ Keys matched for ${secret.name}"
+                            input message: "Keys matched for ${secret.name}. Do you want to rotate them?", ok: "Yes, rotate"
+                        } else {
+                            echo "⚠️ Keys already different for ${secret.name}, skipping input."
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Rotate Keys') {
+            steps {
+                script {
+                    def secrets = readYaml file: "repo/${TEMP_FILE}"
+                    def KEY_VAULT_NAME = secrets.keyVaultName
+
+                    secrets.secrets.each { secret ->
+                        sh """
+                            az storage account keys renew \
+                            --account-name ${secret.storageAccountName} \
+                            --key ${secret.keyType}
+                        """
+                        echo "🔁 Rotated key ${secret.keyType} for ${secret.storageAccountName}"
+                    }
+                }
+            }
+        }
+
+        stage('Update KeyVault with New Keys') {
+            steps {
+                script {
+                    def secrets = readYaml file: "repo/${TEMP_FILE}"
+                    def KEY_VAULT_NAME = secrets.keyVaultName
+
+                    secrets.secrets.each { secret ->
+                        def newKey = sh(
+                            script: "az storage account keys list --account-name ${secret.storageAccountName} --query \"[?keyName=='${secret.keyType}'].value\" -o tsv",
+                            returnStdout: true
+                        ).trim()
+
+                        sh """
+                            az keyvault secret set \
+                            --vault-name ${KEY_VAULT_NAME} \
+                            --name ${secret.name} \
+                            --value '${newKey}'
+                        """
+                        echo "🔑 Updated KeyVault secret: ${secret.name}"
+                    }
+                }
+            }
+        }
+
+        stage('Rotate SQL Server Password') {
+            steps {
+                script {
+                    def secrets = readYaml file: "repo/${TEMP_FILE}"
+                    def sqlConfig = secrets.sql
+                    def KEY_VAULT_NAME = secrets.keyVaultName
+
+                    echo "🔐 Fetching SQL credentials from Key Vault..."
+
+                    def sqlUsername = sh(
+                        script: "az keyvault secret show --name ${sqlConfig.usernameSecret} --vault-name ${KEY_VAULT_NAME} --query value -o tsv",
+                        returnStdout: true
+                    ).trim()
+
+                    def oldPassword = sh(
+                        script: "az keyvault secret show --name ${sqlConfig.passwordSecret} --vault-name ${KEY_VAULT_NAME} --query value -o tsv",
+                        returnStdout: true
+                    ).trim()
+
+                    echo "🔄 Rotating SQL password..."
+
+                    def newPassword = "P@ssw0rd${new Random().nextInt(9999)}!"
+
+                    sh """
+                        az sql server update \
+                        --name ${sqlConfig.serverName} \
+                        --resource-group ${sqlConfig.resourceGroup} \
+                        --admin-user '${sqlUsername}' \
+                        --admin-password '${newPassword}'
+                    """
+
+                    echo "🔐 SQL Server password updated. Updating Key Vault..."
+
+                    sh """
+                        az keyvault secret set \
+                        --vault-name ${KEY_VAULT_NAME} \
+                        --name ${sqlConfig.passwordSecret} \
+                        --value '${newPassword}'
+                    """
+
+                    echo "✅ SQL Server password rotated and Key Vault updated."
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '✅ Key rotation completed successfully.'
+        }
+        failure {
+            echo '❌ Pipeline failed. Check logs.'
+        }
+    }
+}
