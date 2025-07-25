@@ -24,7 +24,7 @@ pipeline {
                     def secrets = readYaml file: "${TEMP_FILE}"
                     secrets.secrets.each { secret ->
                         def keyVaultValue = sh(
-                            script: "az keyvault secret show --name ${secret.name} --vault-name ${KEY_VAULT_NAME} --query value -o tsv",
+                            script: "az keyvault secret show --name ${secret.name} --vault-name ${KEY_VAULT_NAME} --query value -o tsv --identity",
                             returnStdout: true
                         ).trim()
 
