@@ -1,7 +1,7 @@
 secrets:
-  - name: ADQ-STORAGE_ACCESSKEY
-    storageAccountName: mystorageacct
+  - name: ADQ-STORAGE-ACCESSKEY
+    storageAccountName: jnkn
     keyType: key1
-  - name: ADQ_STORAGE_ACCESSSECRET
-    storageAccountName: mystorageacct
+  - name: ADQ-STORAGE-ACCESSSECRET
+    storageAccountName: jnkn
     keyType: key2
