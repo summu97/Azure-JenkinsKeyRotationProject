@@ -1,10 +1,10 @@
-keyVaultName: key-vault-adq
+# keyVaultName: key-vault-adq
 
-sql:
-  serverName: adq-sql-server01
-  resourceGroup: rg-adq-prod
-  usernameSecret: ADQ-SQLSERVERUSERNAME
-  passwordSecret: ADQ-SQLSERVERPASSWORD
+# sql:
+#   serverName: adq-sql-server01
+#   resourceGroup: rg-adq-prod
+#   usernameSecret: ADQ-SQLSERVERUSERNAME
+#   passwordSecret: ADQ-SQLSERVERPASSWORD
 
 secrets:
   - name: ADQ-STORAGE-ACCESSKEY
