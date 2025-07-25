@@ -2,17 +2,26 @@ pipeline {
     agent any
 
     environment {
-        // AZURE_CLIENT_ID = credentials('jenkins-managed-identity-client-id')  Optional if identity is system-assigned
         TEMP_FILE = 'params.yaml'
         KEY_VAULT_NAME = 'key-vault-adq'
     }
 
     stages {
+
+        stage('Azure Login with Managed Identity') {
+            steps {
+                script {
+                    echo '🔐 Logging in to Azure using VM Managed Identity...'
+                    sh 'az login --identity'
+                }
+            }
+        }
+
         stage('Fetch Parameters File') {
             steps {
                 git branch: 'main', url: 'https://github.com/summu97/Azure-JenkinsKeyRotationProject.git'
                 script {
-                    echo "Downloaded parameter file"
+                    echo "📥 Downloaded parameter file"
                     sh 'cat ${TEMP_FILE}'
                 }
             }
@@ -24,7 +33,7 @@ pipeline {
                     def secrets = readYaml file: "${TEMP_FILE}"
                     secrets.secrets.each { secret ->
                         def keyVaultValue = sh(
-                            script: "az keyvault secret show --name ${secret.name} --vault-name ${KEY_VAULT_NAME} --query value -o tsv --identity",
+                            script: "az keyvault secret show --name ${secret.name} --vault-name ${KEY_VAULT_NAME} --query value -o tsv",
                             returnStdout: true
                         ).trim()
 
